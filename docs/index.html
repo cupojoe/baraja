@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Baraja Technical Design</title>
+    <meta
+      name="description"
+      content="Technical design microsite for Baraja, an offline-ready multi-user shared deck of cards."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Baraja technical design home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>Baraja</span>
+      </a>
+      <nav class="nav-links" aria-label="Page sections">
+        <a href="#problem">Problem</a>
+        <a href="#decision">Decision</a>
+        <a href="#design">Design</a>
+        <a href="#risks">Risks</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-scene" aria-hidden="true">
+          <div class="table-oval">
+            <div class="player-seat seat-north">
+              <span class="player-dot"></span>
+              <span class="hand-label">Sam</span>
+            </div>
+            <div class="player-seat seat-east">
+              <span class="player-dot"></span>
+              <span class="hand-label">Mia</span>
+            </div>
+            <div class="player-seat seat-south">
+              <span class="player-dot dealer"></span>
+              <span class="hand-label">Dealer</span>
+            </div>
+            <div class="player-seat seat-west">
+              <span class="player-dot"></span>
+              <span class="hand-label">Jo</span>
+            </div>
+
+            <div class="deck-stack">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div class="table-pile">
+              <div class="mini-card face-down"></div>
+              <div class="mini-card face-up">
+                <span>A</span>
+                <span>H</span>
+              </div>
+            </div>
+            <div class="flying-card card-one"></div>
+            <div class="flying-card card-two"></div>
+            <div class="flying-card card-three"></div>
+          </div>
+        </div>
+
+        <div class="hero-copy">
+          <p class="eyebrow">Offline-ready multi-user card table</p>
+          <h1 id="hero-title">Baraja</h1>
+          <p>
+            A shared deck app that behaves like a physical table: shuffle, deal,
+            give, take, peek, show, flip, cut piles, animate the motion, and run
+            through either a cloud room or a dealer-hosted local room.
+          </p>
+          <div class="hero-actions" aria-label="Primary navigation">
+            <a class="button primary" href="#decision">View the architecture</a>
+            <a class="button secondary" href="#design">Read design details</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="problem" class="section band-light">
+        <div class="section-inner">
+          <div class="section-heading">
+            <p class="eyebrow">Understanding</p>
+            <h2>The Product Problem</h2>
+            <p>
+              Baraja is a deck simulator, not a rules-enforcing card game. It should
+              mirror a physical table where people can attempt real deck actions, the
+              app records what happened, and visibility rules keep private cards private.
+            </p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="info-card">
+              <span class="card-index">01</span>
+              <h3>Shared State</h3>
+              <p>
+                Every participant sees the same table, piles, hands, and card movement
+                order. The source of truth is authoritative, not derived independently
+                on each device.
+              </p>
+            </article>
+            <article class="info-card">
+              <span class="card-index">02</span>
+              <h3>Physical Deck Model</h3>
+              <p>
+                The engine validates state, ordering, and card existence, but social
+                rules decide whether a move was acceptable. Give, take, peek, and show
+                are first-class actions.
+              </p>
+            </article>
+            <article class="info-card">
+              <span class="card-index">03</span>
+              <h3>Dynamic Visibility</h3>
+              <p>
+                Face-down cards are not merely hidden in the UI. Each user receives a
+                projected state view based on who currently knows each card value.
+              </p>
+            </article>
+            <article class="info-card">
+              <span class="card-index">04</span>
+              <h3>Local And Online Play</h3>
+              <p>
+                Cloud rooms support durable online sessions. Dealer-hosted rooms allow
+                in-person play without internet by making the dealer device the local
+                authority.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="options" class="section">
+        <div class="section-inner">
+          <div class="section-heading compact">
+            <p class="eyebrow">Options Considered</p>
+            <h2>Three Ways To Host The Table</h2>
+            <p>
+              Cloud and dealer-hosted rooms are both part of the v1 direction. Fully
+              peer-to-peer hosting is rejected for now because ordering, discovery, and
+              recovery become much harder.
+            </p>
+          </div>
+
+          <div class="comparison-grid">
+            <article class="option-card selected">
+              <div class="selected-label">Selected as remote mode</div>
+              <h3>Cloud Hosted</h3>
+              <p>
+                A backend service owns the deck state, receives commands, validates
+                state transitions, and broadcasts projected updates to every client.
+              </p>
+              <ul>
+                <li>Best for remote play and reconnects.</li>
+                <li>Strongest practical privacy boundary.</li>
+                <li>Requires internet and hosted infrastructure.</li>
+              </ul>
+            </article>
+            <article class="option-card selected">
+              <div class="selected-label">Selected as offline mode</div>
+              <h3>Dealer Hosted</h3>
+              <p>
+                The dealer device runs the room authority locally. Other devices join
+                over local Wi-Fi, hotspot, or a nearby transport.
+              </p>
+              <ul>
+                <li>Works without internet for in-person games.</li>
+                <li>Maps naturally to the dealer role.</li>
+                <li>Dealer device becomes the session dependency.</li>
+              </ul>
+            </article>
+            <article class="option-card">
+              <h3>Fully Peer To Peer</h3>
+              <p>
+                Every participant shares responsibility for state, ordering, discovery,
+                and conflict resolution with no single authority.
+              </p>
+              <ul>
+                <li>Most decentralized.</li>
+                <li>Highest complexity for ordering and trust.</li>
+                <li>Hardest to make consistent across web and native.</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="decision" class="section band-ink">
+        <div class="section-inner">
+          <div class="section-heading">
+            <p class="eyebrow">Selection</p>
+            <h2>Use One Game Engine With Two Hosting Modes</h2>
+            <p>
+              The selected design keeps the card rules, visibility logic, and animation
+              events shared. Cloud and dealer-hosted play are authority adapters over
+              the same command, event, and projection model.
+            </p>
+          </div>
+
+          <div class="mode-tabs" data-tabs>
+            <div class="tab-list" role="tablist" aria-label="Hosting modes">
+              <button class="tab-button is-active" type="button" role="tab" aria-selected="true" data-tab="cloud">
+                Cloud Room
+              </button>
+              <button class="tab-button" type="button" role="tab" aria-selected="false" data-tab="dealer">
+                Dealer Host
+              </button>
+            </div>
+
+            <div class="tab-panel is-active" role="tabpanel" data-panel="cloud">
+              <div class="flow-diagram" aria-label="Cloud hosted architecture diagram">
+                <div class="flow-node">Players</div>
+                <div class="flow-line"></div>
+                <div class="flow-node authority">Cloud Authority</div>
+                <div class="flow-line"></div>
+                <div class="flow-node">Projected State</div>
+              </div>
+              <p>
+                Use this mode for remote sessions, persistent rooms, and reliable
+                reconnects. The cloud authority serializes commands, rejects stale
+                versions, and sends each player a privacy-safe projection.
+              </p>
+            </div>
+
+            <div class="tab-panel" role="tabpanel" data-panel="dealer">
+              <div class="flow-diagram" aria-label="Dealer hosted architecture diagram">
+                <div class="flow-node">Players</div>
+                <div class="flow-line"></div>
+                <div class="flow-node authority">Dealer Device</div>
+                <div class="flow-line"></div>
+                <div class="flow-node">Local Events</div>
+              </div>
+              <p>
+                Use this mode for offline local play. The dealer device is the authority,
+                hosts the session, and broadcasts projected state over a local LAN or
+                hotspot transport.
+              </p>
+            </div>
+          </div>
+
+          <div class="decision-points" aria-label="Reasons for the selected architecture">
+            <div>
+              <h3>Why this selection</h3>
+              <p>It keeps the UX consistent while shipping both remote play and no-internet local play in v1.</p>
+            </div>
+            <div>
+              <h3>What changes by mode</h3>
+              <p>The authority implementation, transport, and persistence strategy change by mode.</p>
+            </div>
+            <div>
+              <h3>What stays shared</h3>
+              <p>The game engine, commands, events, animations, versioning, and projection rules stay shared.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="design" class="section band-light">
+        <div class="section-inner">
+          <div class="section-heading">
+            <p class="eyebrow">Design Details</p>
+            <h2>The Shared Engine</h2>
+            <p>
+              The engine models cards, zones, dynamic visibility, commands, and events.
+              This keeps gameplay behavior independent from whether the room is hosted
+              in the cloud or on the dealer's phone.
+            </p>
+          </div>
+
+          <article class="stance-panel">
+            <div>
+              <p class="eyebrow">Product Stance</p>
+              <h3>Physical Deck With Social Accountability</h3>
+            </div>
+            <p>
+              Baraja does not try to enforce every game rule. Any player may flip,
+              move, or cut table zones. Give and take are explicit cross-hand actions:
+              in v1, a player can take from another player's hand without an app-level
+              consent gate. Hand ownership still controls default visibility and private
+              arrangement. Public events and table etiquette are the enforcement layer.
+            </p>
+          </article>
+
+          <div class="detail-layout">
+            <article class="info-card wide">
+              <h3>Zones</h3>
+              <p>
+                A deck, a player hand, a discard stack, and a table pile are all ordered
+                zones. Each zone stores an ordered list of card ids, so shuffles and cuts
+                replace a list rather than rewriting a numeric order on every card.
+              </p>
+              <div class="zone-strip" aria-label="Example zones">
+                <span>Deck</span>
+                <span>Hand: Alice</span>
+                <span>Table</span>
+                <span>Pile: Center</span>
+              </div>
+            </article>
+
+            <article class="info-card wide">
+              <h3>Visibility Rules</h3>
+              <div class="rule-table" role="table" aria-label="Card visibility rules">
+                <div class="rule-row rule-head" role="row">
+                  <span role="columnheader">Action or state</span>
+                  <span role="columnheader">Face</span>
+                  <span role="columnheader">Current viewers</span>
+                  <span role="columnheader">Event note</span>
+                </div>
+                <div class="rule-row" role="row">
+                  <span role="cell">Dealt to hand</span>
+                  <span role="cell">Up</span>
+                  <span role="cell">Everyone</span>
+                  <span role="cell">CardsDealt</span>
+                </div>
+                <div class="rule-row" role="row">
+                  <span role="cell">Dealt to hand</span>
+                  <span role="cell">Down</span>
+                  <span role="cell">Only that player</span>
+                  <span role="cell">CardsDealt</span>
+                </div>
+                <div class="rule-row" role="row">
+                  <span role="cell">Table pile</span>
+                  <span role="cell">Up</span>
+                  <span role="cell">Everyone</span>
+                  <span role="cell">CardsMoved or CardsFlipped</span>
+                </div>
+                <div class="rule-row" role="row">
+                  <span role="cell">Table pile</span>
+                  <span role="cell">Down</span>
+                  <span role="cell">No one</span>
+                  <span role="cell">CardsMoved</span>
+                </div>
+                <div class="rule-row" role="row">
+                  <span role="cell">Peek</span>
+                  <span role="cell">Down</span>
+                  <span role="cell">Prior viewers plus peeker</span>
+                  <span role="cell">Public CardPeeked event; reset on move</span>
+                </div>
+                <div class="rule-row" role="row">
+                  <span role="cell">Show</span>
+                  <span role="cell">Any</span>
+                  <span role="cell">Prior viewers plus chosen audience</span>
+                  <span role="cell">CardsShown records actor and audience; reset on move</span>
+                </div>
+                <div class="rule-row" role="row">
+                  <span role="cell">Give or take</span>
+                  <span role="cell">Any</span>
+                  <span role="cell">Recomputed from destination defaults</span>
+                  <span role="cell">Public CardsMoved event</span>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div class="command-grid" aria-label="First-class commands">
+            <article class="command-card">
+              <h3>Deal</h3>
+              <p>Moves cards from a source zone to a destination with face-up or face-down intent.</p>
+            </article>
+            <article class="command-card">
+              <h3>Shuffle</h3>
+              <p>Randomly reorders a zone and resets each card's viewers from that zone's defaults.</p>
+            </article>
+            <article class="command-card">
+              <h3>Give</h3>
+              <p>Moves a card from the actor's zone to another player, table zone, or pile.</p>
+            </article>
+            <article class="command-card">
+              <h3>Take</h3>
+              <p>Moves a card from another zone to the actor's zone. This is allowed in v1 and publicly recorded.</p>
+            </article>
+            <article class="command-card">
+              <h3>Peek</h3>
+              <p>Grants visibility inside the current zone and broadcasts who peeked at whom.</p>
+            </article>
+            <article class="command-card">
+              <h3>Show</h3>
+              <p>Widens visibility inside the current zone to one player, several players, or everyone.</p>
+            </article>
+            <article class="command-card">
+              <h3>Flip</h3>
+              <p>Toggles one or more table cards face up or face down and recomputes viewers from face state.</p>
+            </article>
+            <article class="command-card">
+              <h3>Cut</h3>
+              <p>Reorders a pile by splitting it at a random or chosen point and recombining the halves.</p>
+            </article>
+          </div>
+
+          <article class="state-model">
+            <div>
+              <h3>Core State Model</h3>
+              <p>
+                Visibility is a per-viewer set, not a static card category. Projection
+                includes a card value only when the requesting player is currently in
+                the viewer set or the value is visible to everyone. Whenever a card
+                moves zones, its viewers reset from the destination zone's defaults.
+              </p>
+            </div>
+            <pre aria-label="Example TypeScript state model"><code>type ViewerSet = "everyone" | Set&lt;PlayerId&gt;;
+
+type CardState = {
+  id: string;
+  value: CardValue;
+  zoneId: ZoneId;
+  face: "up" | "down";
+  visibleTo: ViewerSet;
+};
+
+type ZoneState = {
+  id: ZoneId;
+  type: "deck" | "hand" | "table" | "pile";
+  ownerPlayerId?: PlayerId;
+  cardIds: CardId[];
+};</code></pre>
+          </article>
+
+          <article class="notification-panel">
+            <div>
+              <h3>Peek Notification Contract</h3>
+              <p>
+                Peek is a privacy primitive, not a private UI affordance. The social
+                cost only works if the whole table can see that it happened.
+              </p>
+            </div>
+            <ul>
+              <li>Every peek emits a public event naming the peeker and the target.</li>
+              <li>Peek events survive reconnect as part of the game event log.</li>
+              <li>Analytics must not make peek history queryable outside the room context.</li>
+            </ul>
+          </article>
+
+          <div class="architecture-grid">
+            <article class="architecture-block">
+              <h3>Command Ordering</h3>
+              <ol>
+                <li>Client sends a command with room, actor, and expected version.</li>
+                <li>Authority rejects stale versions and invalid card references.</li>
+                <li>Authority mutates state atomically.</li>
+                <li>Client reconciles from the latest snapshot after rejection.</li>
+              </ol>
+            </article>
+            <article class="architecture-block">
+              <h3>Animation Path</h3>
+              <ol>
+                <li>Authority emits semantic events, not screen coordinates.</li>
+                <li>Each client computes local card positions for its viewport.</li>
+                <li>Cards fly from source zone to destination zone with staggered timing.</li>
+                <li>The final layout settles after the animation completes.</li>
+              </ol>
+            </article>
+            <article class="architecture-block">
+              <h3>Offline Join Path</h3>
+              <ol>
+                <li>Dealer starts a local room and displays a QR code.</li>
+                <li>Players join the same local network or hotspot.</li>
+                <li>Clients connect to the dealer host and receive a snapshot.</li>
+                <li>Commands flow through the dealer until the room ends.</li>
+              </ol>
+            </article>
+            <article class="architecture-block">
+              <h3>Reconnect Path</h3>
+              <ol>
+                <li>Client receives a current projected snapshot.</li>
+                <li>Missed card moves are folded into that snapshot.</li>
+                <li>Server replays missed social events: peek notices and relevant shows.</li>
+                <li>Old animations are skipped if they are no longer useful.</li>
+              </ol>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-inner">
+          <div class="section-heading compact">
+            <p class="eyebrow">Implementation Shape</p>
+            <h2>Suggested Technical Stack</h2>
+          </div>
+
+          <div class="stack-grid">
+            <article class="stack-item">
+              <h3>Client</h3>
+              <p>Expo and React Native for iOS, Android, and web from one TypeScript codebase.</p>
+            </article>
+            <article class="stack-item">
+              <h3>Animation</h3>
+              <p>React Native Reanimated for dealing, flips, hand fans, pile movement, and gestures.</p>
+            </article>
+            <article class="stack-item">
+              <h3>Cloud Transport</h3>
+              <p>Socket.IO over WebSocket with room snapshots, command acknowledgements, and event replay.</p>
+            </article>
+            <article class="stack-item">
+              <h3>Offline Transport</h3>
+              <p>Dealer-hosted local WebSocket room over LAN or hotspot, joined by QR code.</p>
+            </article>
+            <article class="stack-item">
+              <h3>Persistence</h3>
+              <p>Postgres for cloud history and recovery. Dealer-hosted rooms use the dealer's local log as authority; peers may keep a recent tail only for diagnostics.</p>
+            </article>
+            <article class="stack-item">
+              <h3>Privacy</h3>
+              <p>Casual privacy through projected state now. Cryptographic privacy is explicitly out of v1.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="risks" class="section band-warning">
+        <div class="section-inner">
+          <div class="section-heading">
+            <p class="eyebrow">Risks And Concerns</p>
+            <h2>What Needs Careful Engineering</h2>
+          </div>
+
+          <div class="risk-list">
+            <article>
+              <h3>Dealer Device Dependency</h3>
+              <p>
+                Offline mode depends on the dealer phone staying awake, connected, and
+                sufficiently charged. If the dealer phone dies in v1, the room ends and
+                any buffered local events that never reached peers may be lost.
+              </p>
+            </article>
+            <article>
+              <h3>Dealer-Hosted Privacy Ceiling</h3>
+              <p>
+                In dealer-hosted mode, the dealer device runs the authority and can
+                technically inspect all card values. The v1 guarantee is UI projection,
+                not cryptographic secrecy from the host.
+              </p>
+            </article>
+            <article>
+              <h3>Privacy Semantics</h3>
+              <p>
+                Face-down cards must not leak through event payloads, logs, debugging
+                panels, analytics, or reconnect snapshots. Peek history is game state,
+                not telemetry for unrelated later queries.
+              </p>
+            </article>
+            <article>
+              <h3>Command Races</h3>
+              <p>
+                Alice taking a card and Bob giving the same card can arrive in either
+                order. Expected-version checks should reject the stale command and force
+                the losing client to reconcile.
+              </p>
+            </article>
+            <article>
+              <h3>Remote Take UX</h3>
+              <p>
+                Taking from another hand is acceptable in the physical-deck model, but
+                remote play lacks table presence. Take-from-hand events need stronger
+                notification treatment than ordinary table moves.
+              </p>
+            </article>
+            <article>
+              <h3>Connectivity Variance</h3>
+              <p>
+                Local networks, hotspots, captive portals, and platform permissions
+                create uneven behavior. QR join and clear reconnect states will matter.
+              </p>
+            </article>
+            <article>
+              <h3>Animation Consistency</h3>
+              <p>
+                Clients should animate the same event sequence while computing positions
+                locally. The app should be able to skip stale animations during reconnects.
+              </p>
+            </article>
+            <article>
+              <h3>Rule Ambiguity</h3>
+              <p>
+                Baraja is a deck simulator rather than one specific card game. The engine
+                should stay generic while public events make socially questionable moves
+                visible to the table.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Baraja Technical Design</strong>
+        <p>Shared deck engine, dynamic visibility, cloud rooms, and dealer-hosted offline play.</p>
+      </div>
+      <a href="#top">Back to top</a>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
