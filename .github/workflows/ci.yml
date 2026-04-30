@@ -16,7 +16,11 @@ jobs:
           node-version: 24
           cache: npm
       - run: corepack enable
+      - run: npm --version
       - run: npm ci
+      - name: Print npm debug log
+        if: failure()
+        run: cat /home/runner/.npm/_logs/*.log
       - run: npm run test
 
   typecheck:
