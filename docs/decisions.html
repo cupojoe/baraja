@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Baraja — Tooling Decisions</title>
+    <meta
+      name="description"
+      content="Technical tooling decisions for Baraja: selected libraries, rejected alternatives, and the reasoning behind each choice."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html" aria-label="Baraja home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>Baraja</span>
+      </a>
+      <nav class="nav-links" aria-label="Site sections">
+        <a href="index.html#problem">Problem</a>
+        <a href="index.html#decision">Decision</a>
+        <a href="index.html#design">Design</a>
+        <a href="index.html#risks">Risks</a>
+        <a href="decisions.html" aria-current="page">Tooling</a>
+      </nav>
+      <div class="lang-toggle" aria-label="Language toggle">
+        <button type="button" class="lang-btn is-active" data-lang="en">EN</button>
+        <span class="lang-sep" aria-hidden="true">|</span>
+        <button type="button" class="lang-btn" data-lang="es">ES</button>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="page-intro band-ink" aria-labelledby="page-title">
+        <div class="section-inner">
+          <p class="eyebrow">Implementation Record</p>
+          <h1 id="page-title">Tooling Decisions</h1>
+          <p>
+            Each tool was chosen to support a specific constraint of the Baraja problem.
+            This page records what was selected, what was considered and rejected,
+            and why each trade-off was made.
+          </p>
+        </div>
+      </section>
+
+      <!-- ── Monorepo & Build ──────────────────────────────────────────── -->
+      <section id="monorepo" class="section band-light" aria-labelledby="h-monorepo">
+        <div class="section-inner">
+          <div class="section-heading">
+            <p class="eyebrow">Foundation</p>
+            <h2 id="h-monorepo">One Repo, Coordinated Builds</h2>
+            <p>
+              The engine package is a shared dependency of both the server and the
+              mobile client. The build toolchain must enforce that the engine is compiled
+              before either consumer runs a typecheck or build — by convention is not
+              enough.
+            </p>
+          </div>
+
+          <div class="comparison-grid">
+            <article class="option-card selected">
+              <div class="selected-label">Selected</div>
+              <h3>npm workspaces + Turborepo</h3>
+              <p>
+                npm workspaces (built into Node/npm) hoists shared dependencies and
+                links local packages via symlink. Turborepo adds a task graph:
+                <code>dependsOn: ["^build"]</code> guarantees the engine compiles
+                before the server or mobile app builds or typechecks. Turbo also
+                caches build artifacts so unchanged packages never rebuild.
+              </p>
+              <ul>
+                <li>Zero extra infrastructure — ships with Node 22 + npm.</li>
+                <li>Task ordering is explicit and reproducible.</li>
+                <li>Remote cache can be added later without changing package structure.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>pnpm workspaces / Yarn workspaces</h3>
+              <p>
+                pnpm was not installed in the development environment. Yarn workspaces
+                offer no material advantage over npm workspaces at this project scale.
+                Neither was worth the installation friction on top of a Node 22
+                requirement already present.
+              </p>
+              <ul>
+                <li>pnpm: not installed; adds a setup step with no clear payoff.</li>
+                <li>Yarn: separate install, separate lockfile format, no gain here.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>Nx / Lerna</h3>
+              <p>
+                Nx adds project-level config files, executor plugins, affected-command
+                infrastructure, and a caching daemon. Lerna's primary value was version
+                publishing, which this project does not need. Both are considerably more
+                configuration than three packages warrant.
+              </p>
+              <ul>
+                <li>Nx: significant config overhead for three packages.</li>
+                <li>Lerna: versioning and publishing tooling, not a build graph.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="decision-points" style="margin-top: 18px;">
+            <div>
+              <h3>Why the build order matters</h3>
+              <p>
+                <code>@baraja/engine</code> exports TypeScript declaration files from
+                <code>dist/</code>. If the server or mobile app imports it before
+                <code>dist/</code> exists, the typecheck fails with a module-not-found
+                error. Turborepo's task graph makes this constraint impossible to
+                violate accidentally.
+              </p>
+            </div>
+            <div>
+              <h3>Accepted trade-off</h3>
+              <p>
+                npm's hoisting strategy occasionally causes phantom dependency issues
+                in large repos. At three packages this is not a real risk. If the repo
+                grows significantly, migrating to pnpm strict hoisting is a one-day
+                change.
+              </p>
+            </div>
+            <div>
+              <h3>Development flow</h3>
+              <p>
+                <code>npm run build -w packages/engine</code> once, then
+                <code>turbo dev</code> in the root. Turbo watches engine source and
+                rebuilds incrementally; server and mobile hot-reload from their own
+                watchers.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Language & Types ──────────────────────────────────────────── -->
+      <section id="typescript" class="section" aria-labelledby="h-typescript">
+        <div class="section-inner">
+          <div class="section-heading">
+            <p class="eyebrow">Type System</p>
+            <h2 id="h-typescript">Shared TypeScript Across All Three Packages</h2>
+            <p>
+              <code>@baraja/engine</code> defines the contract between the server and
+              the mobile client: <code>CardState</code>, <code>ZoneState</code>,
+              <code>ViewerSet</code>, every command, and every event. If either consumer
+              disagrees with the engine's shape, it fails at compile time, not at
+              runtime in the middle of a game.
+            </p>
+          </div>
+
+          <div class="comparison-grid">
+            <article class="option-card selected">
+              <div class="selected-label">Selected</div>
+              <h3>TypeScript 6 (strict mode)</h3>
+              <p>
+                Strict mode throughout. <code>composite: true</code> enables TypeScript
+                project references so the server and mobile app typecheck against engine
+                source directly. The server uses <code>NodeNext</code> module resolution
+                to match Node.js semantics; the engine and mobile use
+                <code>Bundler</code> resolution for ESM compatibility with Metro and
+                tsx.
+              </p>
+              <ul>
+                <li>Single language across all packages — no context switch.</li>
+                <li>Projection bugs are type errors, not runtime surprises.</li>
+                <li>Shared event and command shapes with zero serialization drift.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>JavaScript (no types)</h3>
+              <p>
+                Without static types, command and event shape mismatches surface only
+                when the code runs. The visibility projection — deciding whether a card
+                value should reach a given player — is exactly the kind of logic that
+                fails silently in untyped code.
+              </p>
+              <ul>
+                <li>No cross-package contract: any rename is a silent breaking change.</li>
+                <li>Card value leaks through projection would not be caught at build time.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>Flow / runtime-only (Zod, Valibot)</h3>
+              <p>
+                Flow's ecosystem has contracted significantly and offers no advantage
+                over TypeScript here. Runtime validation libraries (Zod, Valibot) are
+                useful at system boundaries but are not substitutes for static typing
+                across the whole codebase.
+              </p>
+              <ul>
+                <li>Flow: smaller ecosystem, no material benefit over TypeScript.</li>
+                <li>Runtime-only validation: catches errors later and only on the happy path.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="decision-points" style="margin-top: 18px;">
+            <div>
+              <h3>The key type: ViewerSet</h3>
+              <p>
+                <code>type ViewerSet = "everyone" | Set&lt;PlayerId&gt;</code> — the
+                projection layer checks this before including a card value in any
+                outgoing payload. TypeScript enforces that every code path handles both
+                cases explicitly. Without this, a default-truthy check could silently
+                broadcast private card values.
+              </p>
+            </div>
+            <div>
+              <h3>TypeScript 6 vs 5.x</h3>
+              <p>
+                TypeScript 6 is the current stable release. The project uses no
+                deprecated patterns from 5.x, so there is no migration cost. The Expo
+                toolchain (Metro, babel-preset-expo) resolves TypeScript via the Babel
+                transform and is version-agnostic for type-stripping purposes.
+              </p>
+            </div>
+            <div>
+              <h3>Accepted trade-off</h3>
+              <p>
+                TypeScript 6 is very new. If a dependency exposes an incompatibility
+                with the new compiler, pinning to 5.8.x in that package's
+                <code>devDependencies</code> resolves it without touching the shared
+                base config. The root <code>tsconfig.base.json</code> settings are all
+                stable across both versions.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Client Platform ───────────────────────────────────────────── -->
+      <section id="client" class="section band-light" aria-labelledby="h-client">
+        <div class="section-inner">
+          <div class="section-heading">
+            <p class="eyebrow">Client Platform</p>
+            <h2 id="h-client">One Codebase for iOS, Android, and Web</h2>
+            <p>
+              Baraja needs to run on phones. The UI must handle touch gestures, card
+              animations at 60 fps, and a persistent WebSocket connection — on both
+              iOS and Android from the same source.
+            </p>
+          </div>
+
+          <div class="comparison-grid">
+            <article class="option-card selected">
+              <div class="selected-label">Selected</div>
+              <h3>Expo SDK 55 + React Native 0.85 + Expo Router v4</h3>
+              <p>
+                Expo SDK 55 manages the native build toolchain, OTA updates, and the
+                dependency graph for native modules. React Native 0.85 uses the New
+                Architecture (Fabric renderer, JSI) by default. Expo Router v4 adds
+                file-based routing with typed routes, enabling deep links for room
+                invites without manual navigation config.
+              </p>
+              <ul>
+                <li>Single TypeScript codebase for iOS, Android, and web.</li>
+                <li>New Architecture enabled by default — lower JS bridge overhead.</li>
+                <li>Managed workflow keeps native build infra out of the repo.</li>
+                <li>Typed routes catch broken deep links at compile time.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>Flutter</h3>
+              <p>
+                Flutter uses Dart. The game engine is TypeScript. Sharing types,
+                commands, and events between a Dart client and a TypeScript server
+                requires a code-generation step (protobuf, OpenAPI) that adds
+                significant maintenance overhead for every schema change.
+              </p>
+              <ul>
+                <li>Language boundary: TypeScript engine cannot be imported directly.</li>
+                <li>Schema generation adds friction to every engine type change.</li>
+                <li>Dart is a meaningful context switch for a TypeScript-first project.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>React Native CLI / Capacitor</h3>
+              <p>
+                The bare React Native CLI requires manual native project maintenance
+                (Podfile, Gradle files, native module linking). Capacitor wraps a web
+                app in a WebView — the JavaScript bridge latency compounds with
+                animation and gesture work, which is the heaviest part of this UI.
+              </p>
+              <ul>
+                <li>RN CLI: no managed build infra, more native churn per SDK upgrade.</li>
+                <li>Capacitor: WebView bridge adds latency to the animation-heavy card UI.</li>
+                <li>Neither has a routing layer comparable to Expo Router.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="decision-points" style="margin-top: 18px;">
+            <div>
+              <h3>New Architecture matters here</h3>
+              <p>
+                React Native's New Architecture moves layout and gesture handling off
+                the JS thread via JSI. For a card game where gestures (drag, fan,
+                flick) trigger animations, this is the difference between a smooth
+                experience and one that stutters when the event loop is busy processing
+                a server event.
+              </p>
+            </div>
+            <div>
+              <h3>Expo Router and room invites</h3>
+              <p>
+                Room join links are a first-class product feature for both cloud rooms
+                and local dealer-hosted rooms (via QR code). Expo Router's typed deep
+                link support means <code>baraja://room/[id]</code> routes are statically
+                validated — a renamed route segment is a build error.
+              </p>
+            </div>
+            <div>
+              <h3>Accepted trade-off</h3>
+              <p>
+                Expo's managed workflow limits direct native module access. Any feature
+                requiring custom native code (e.g., mDNS for local room discovery)
+                requires ejecting to a bare workflow or using a config plugin. This is
+                an expected constraint for dealer-hosted mode and is deferred to a
+                later milestone.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Animation ─────────────────────────────────────────────────── -->
+      <section id="animation" class="section" aria-labelledby="h-animation">
+        <div class="section-inner">
+          <div class="section-heading">
+            <p class="eyebrow">Card Motion</p>
+            <h2 id="h-animation">60 fps Animations on the UI Thread</h2>
+            <p>
+              Dealing, shuffling, flipping, and cutting cards must animate smoothly
+              even while network events are arriving and the game state is updating.
+              Animation work that runs on the JavaScript thread is vulnerable to
+              pauses from socket message processing.
+            </p>
+          </div>
+
+          <div class="comparison-grid">
+            <article class="option-card selected">
+              <div class="selected-label">Selected</div>
+              <h3>React Native Reanimated 4 + react-native-worklets</h3>
+              <p>
+                Reanimated 4 runs animation logic in worklets — small functions that
+                execute on the UI thread via JSI, entirely bypassing the JS event loop.
+                The <code>react-native-worklets</code> package (split from Reanimated
+                in v4) provides the shared memory and thread-safe value model that both
+                gesture handlers and layout animations depend on.
+              </p>
+              <ul>
+                <li>UI-thread execution: card motion never drops frames from socket events.</li>
+                <li>Shared values let the server event update state while animation plays.</li>
+                <li>Gesture recognition and layout animation share the same worklet model.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>React Native Animated API</h3>
+              <p>
+                The built-in Animated API can run on the native driver for simple
+                transforms, but complex interpolations and gesture-linked animations
+                fall back to JS-driven execution. For a card game with continuous
+                gesture input and concurrent state updates, the JS-driven fallback is
+                a real performance ceiling.
+              </p>
+              <ul>
+                <li>JS-driven path is a real risk for this animation complexity.</li>
+                <li>No worklet model: gesture and layout code cannot share thread-safe values.</li>
+                <li>Less expressive than Reanimated for multi-card choreography.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>Lottie / pre-baked animations</h3>
+              <p>
+                Lottie plays back pre-authored animation files. Card positions in Baraja
+                are computed at runtime from the game state — which card is in which
+                zone, how many cards are in a hand fan, where the target pile is on
+                screen. These positions cannot be pre-authored.
+              </p>
+              <ul>
+                <li>Not suitable for dynamic, state-driven card positions.</li>
+                <li>No interaction with gesture recognizers or layout engine.</li>
+                <li>Good for decorative UI elements; wrong tool for game pieces.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="decision-points" style="margin-top: 18px;">
+            <div>
+              <h3>The concurrent event problem</h3>
+              <p>
+                A deal animation starts when the authority emits a
+                <code>CardsDealt</code> event. While the cards are flying, the next
+                player may play a card, sending another event. Reanimated's shared
+                value model lets incoming events update game state without interrupting
+                or dropping the in-progress animation.
+              </p>
+            </div>
+            <div>
+              <h3>Worklets as a peer dependency</h3>
+              <p>
+                Reanimated 4 splits <code>react-native-worklets</code> into a separate
+                package (<code>~0.8.1</code> for RN 0.81–0.85). Both must be installed
+                and the Babel plugin must be registered in <code>babel.config.js</code>
+                for the worklet transform to apply. Missing either causes silent
+                fallback to JS-thread execution.
+              </p>
+            </div>
+            <div>
+              <h3>Accepted trade-off</h3>
+              <p>
+                Worklets require the Babel plugin and add a compilation step. Build
+                times increase slightly. The plugin must be the last item in the Babel
+                plugin list. These are well-documented constraints and do not affect
+                the runtime behavior once configured correctly.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Real-time Transport ───────────────────────────────────────── -->
+      <section id="transport" class="section band-light" aria-labelledby="h-transport">
+        <div class="section-inner">
+          <div class="section-heading">
+            <p class="eyebrow">Game Transport</p>
+            <h2 id="h-transport">Socket.IO for Cloud Room Communication</h2>
+            <p>
+              The cloud authority model requires ordered broadcast to a named set of
+              players, command acknowledgement so the client knows whether its move was
+              accepted, and automatic reconnection so a brief network drop does not
+              end the game.
+            </p>
+          </div>
+
+          <div class="comparison-grid">
+            <article class="option-card selected">
+              <div class="selected-label">Selected</div>
+              <h3>Socket.IO 4</h3>
+              <p>
+                Socket.IO's room primitive maps directly to a game room:
+                <code>socket.join(roomId)</code> and <code>io.to(roomId).emit()</code>
+                handle player membership and broadcast without custom routing. Built-in
+                reconnection with exponential backoff preserves session state across
+                drops. Acknowledgement callbacks let the server confirm or reject each
+                command before the client updates its local state.
+              </p>
+              <ul>
+                <li>Room primitives match the game model directly — no custom membership layer.</li>
+                <li>Acknowledgements enable the expected-version command/reject pattern.</li>
+                <li>Automatic reconnection with configurable backoff.</li>
+                <li>Falls back to long-polling where WebSocket is blocked (captive portals).</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>Raw WebSocket (ws / native)</h3>
+              <p>
+                Raw WebSocket provides a message pipe and nothing else. Rooms,
+                reconnection, acknowledgements, fallback transports, and namespace
+                isolation must all be built on top. That is Socket.IO, reimplemented
+                without the benefit of years of production use.
+              </p>
+              <ul>
+                <li>No rooms: player membership tracking is bespoke infrastructure.</li>
+                <li>No acknowledgements: command confirmation requires a custom protocol.</li>
+                <li>No reconnection: session resume logic is entirely custom.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>tRPC WebSocket / managed push (Ably, Pusher)</h3>
+              <p>
+                tRPC's subscription model fits query/mutation patterns; game events are
+                not subscriptions to a data feed — they are ordered, versioned state
+                mutations that must be sequenced and rejected. Managed push services
+                (Ably, Pusher) add vendor lock-in and move the projection logic to the
+                server in a way that does not compose with the authority model.
+              </p>
+              <ul>
+                <li>tRPC: subscription semantics mismatch the command/event model.</li>
+                <li>Ably/Pusher: vendor lock-in, cost at scale, less control over projection.</li>
+                <li>Managed services make dealer-hosted mode impossible without a separate transport.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="decision-points" style="margin-top: 18px;">
+            <div>
+              <h3>Acknowledgements and version rejection</h3>
+              <p>
+                When a client sends a command, it includes <code>expectedVersion</code>.
+                The server's acknowledgement callback returns either the new version
+                (accepted) or a rejection reason. The client holds off updating its
+                local state until it receives this ack. Socket.IO acks are a first-class
+                primitive — no extra protocol layer needed.
+              </p>
+            </div>
+            <div>
+              <h3>Reconnect and snapshot replay</h3>
+              <p>
+                On reconnect, the client re-joins its room and requests the current
+                projected snapshot. Socket.IO's room membership persists on the server
+                through a configurable grace period, so a brief drop does not lose the
+                player's seat. Missed events are folded into the snapshot rather than
+                replayed individually.
+              </p>
+            </div>
+            <div>
+              <h3>Dealer-hosted transport</h3>
+              <p>
+                Socket.IO is also the planned transport for dealer-hosted rooms — the
+                dealer device runs a <code>socket.io</code> server locally, and other
+                players connect to it over LAN. The same client-side
+                <code>socket.io-client</code> works for both cloud and dealer-hosted
+                rooms; only the server URL changes.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Server & Runtime ──────────────────────────────────────────── -->
+      <section id="server" class="section" aria-labelledby="h-server">
+        <div class="section-inner">
+          <div class="section-heading">
+            <p class="eyebrow">Cloud Server</p>
+            <h2 id="h-server">Express 5 on Node.js 22</h2>
+            <p>
+              The cloud server is a thin authority layer. It receives commands, validates
+              versions, mutates state, persists events, and broadcasts projections. It
+              should not accumulate framework complexity.
+            </p>
+          </div>
+
+          <div class="comparison-grid">
+            <article class="option-card selected">
+              <div class="selected-label">Selected</div>
+              <h3>Express 5 + Node.js 22</h3>
+              <p>
+                Express 5 adds native async error handling — thrown errors in route
+                handlers propagate to the error middleware without wrapping in
+                try/catch. Socket.IO attaches directly to an Express HTTP server with
+                one line. Node.js 22 is the current LTS and is a hard requirement of
+                React Native 0.85's build toolchain regardless of server choice.
+              </p>
+              <ul>
+                <li>Minimal surface area — the server is an authority, not an application framework.</li>
+                <li>Native async error propagation in Express 5 removes a common footgun.</li>
+                <li>Socket.IO + Express is the canonical integration pattern with abundant examples.</li>
+                <li>Node 22 LTS is already required by the RN 0.85 dev toolchain.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>Fastify</h3>
+              <p>
+                Fastify's JSON schema validation and serialization pipeline is valuable
+                for REST-heavy APIs. For this server, most traffic is WebSocket — the
+                REST surface is a health endpoint and room creation. Fastify's
+                Socket.IO integration requires an adapter plugin with less documentation
+                than the direct Express pattern.
+              </p>
+              <ul>
+                <li>WebSocket-heavy server derives little benefit from Fastify's serialization pipeline.</li>
+                <li>Socket.IO adapter adds config overhead with no payoff at this scale.</li>
+                <li>Fewer examples for the Fastify + Socket.IO combination.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>Bun runtime</h3>
+              <p>
+                Bun's native WebSocket support is compelling, but the React Native 0.85
+                build toolchain explicitly requires Node.js 22. Running the server on
+                Bun while the mobile dev toolchain requires Node creates a split
+                environment with no clear benefit for this use case.
+              </p>
+              <ul>
+                <li>RN 0.85 build tools require Node 22 — Bun does not eliminate Node from the repo.</li>
+                <li>Socket.IO on Bun has lower test coverage than the Node.js path.</li>
+                <li>Split runtime environments add cognitive overhead for a solo or small team.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="decision-points" style="margin-top: 18px;">
+            <div>
+              <h3>Server surface area</h3>
+              <p>
+                The server exposes one REST endpoint (<code>GET /health</code>) and
+                one Socket.IO namespace (<code>/</code>). Room creation, joining, and
+                all game commands flow through Socket.IO events. Express exists only to
+                provide the HTTP server that Socket.IO attaches to and to serve future
+                REST endpoints for room management.
+              </p>
+            </div>
+            <div>
+              <h3>tsx for development</h3>
+              <p>
+                <code>tsx watch src/index.ts</code> runs TypeScript directly without a
+                compile step in development, using esbuild under the hood. The server
+                restarts on file changes. For production, <code>tsc</code> compiles to
+                <code>dist/</code> and <code>node dist/index.js</code> runs the output.
+                No transpiler is needed at runtime in production.
+              </p>
+            </div>
+            <div>
+              <h3>Accepted trade-off</h3>
+              <p>
+                Express does not validate incoming Socket.IO event payloads. Command
+                shapes are typed at the TypeScript level but not runtime-validated
+                at the socket boundary. Adding a runtime validator (Zod) at socket
+                event handlers is the planned next step before any public-facing
+                deployment.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Persistence ───────────────────────────────────────────────── -->
+      <section id="persistence" class="section band-light" aria-labelledby="h-persistence">
+        <div class="section-inner">
+          <div class="section-heading">
+            <p class="eyebrow">State Storage</p>
+            <h2 id="h-persistence">SQLite Now, Postgres When Ready</h2>
+            <p>
+              Game events and room snapshots need durable storage. The development
+              environment should require zero external processes. Production needs
+              multi-reader support and crash recovery. The persistence layer must
+              handle both without rewriting the schema.
+            </p>
+          </div>
+
+          <div class="comparison-grid">
+            <article class="option-card selected">
+              <div class="selected-label">Selected</div>
+              <h3>Drizzle ORM + better-sqlite3 → postgres-js</h3>
+              <p>
+                Drizzle defines the schema in TypeScript once
+                (<code>src/db/schema.ts</code>). Switching from SQLite to Postgres
+                is a driver swap: replace <code>better-sqlite3</code> with
+                <code>postgres</code> and change the Drizzle client import. The schema
+                file does not change. In development, the database is a single
+                <code>baraja.db</code> file with WAL mode enabled — no process to
+                start, no credentials to manage.
+              </p>
+              <ul>
+                <li>TypeScript-first schema: table shapes are typed throughout the server.</li>
+                <li>SQLite for dev: zero infra, one file, WAL for concurrent reads.</li>
+                <li>Postgres for production: driver-only change, no schema rewrite.</li>
+                <li>Drizzle Kit generates migrations from the TypeScript schema.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>Prisma</h3>
+              <p>
+                Prisma generates a Rust-backed query engine and a JavaScript client
+                from a <code>.prisma</code> schema file. The codegen step adds
+                latency to the dev loop, and the WASM bundle is a concern for
+                edge or embedded deployments. Prisma's value is schema-driven
+                client generation; Drizzle is lighter and SQL-closer for this
+                use case.
+              </p>
+              <ul>
+                <li>Codegen adds a step to every schema change cycle.</li>
+                <li>Heavier runtime: Rust query engine binary per target platform.</li>
+                <li>Less flexible for raw SQL when needed for event log queries.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>Redis / raw SQL strings</h3>
+              <p>
+                Redis is optimized for key-value access and pub/sub. The game event
+                log is an append-only ordered sequence that needs versioned reads and
+                atomic version-gated writes — relational semantics, not key-value.
+                Raw SQL strings lose the type safety that makes the projection layer
+                safe; a typo in a column name is a runtime error.
+              </p>
+              <ul>
+                <li>Redis: not relational; ordering and version-gating are awkward to implement.</li>
+                <li>Raw SQL: no type contract between schema and query results.</li>
+                <li>Both require significantly more infrastructure or discipline than Drizzle.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="decision-points" style="margin-top: 18px;">
+            <div>
+              <h3>Schema shape</h3>
+              <p>
+                Three tables: <code>rooms</code> (id, created_at, closed_at),
+                <code>game_events</code> (id, room_id, version, type, payload as JSON,
+                created_at), <code>snapshots</code> (id, room_id, version, state as
+                JSON, created_at). The event log is append-only; snapshots are written
+                periodically to bound replay cost on reconnect.
+              </p>
+            </div>
+            <div>
+              <h3>WAL mode in SQLite</h3>
+              <p>
+                <code>PRAGMA journal_mode = WAL</code> enables concurrent readers with
+                a single writer — multiple Socket.IO handlers can read the current
+                state while the authority writes a new event. Without WAL, SQLite
+                uses exclusive write locks and concurrent reads block.
+              </p>
+            </div>
+            <div>
+              <h3>Migration path to Postgres</h3>
+              <p>
+                Replace <code>better-sqlite3</code> with <code>postgres</code> in
+                <code>apps/server/package.json</code>, update the Drizzle client
+                import in <code>src/db/client.ts</code>, change
+                <code>drizzle.config.ts</code> dialect from <code>sqlite</code> to
+                <code>postgresql</code>, and set <code>DATABASE_URL</code>. No schema
+                changes. The app is brittle on SQLite by design; switching is a
+                deliberate future step.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Baraja Technical Design</strong>
+        <p>Shared deck engine, dynamic visibility, cloud rooms, and dealer-hosted offline play.</p>
+      </div>
+      <a href="#top">Back to top</a>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
