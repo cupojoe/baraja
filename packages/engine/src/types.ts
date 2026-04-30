@@ -7,7 +7,7 @@ export type Suit = "S" | "H" | "D" | "C";
 export type Rank = "A" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "J" | "Q" | "K";
 export type CardValue = { rank: Rank; suit: Suit };
 
-export type ViewerSet = "everyone" | Set<PlayerId>;
+export type ViewerSet = "everyone" | PlayerId[];
 
 export type CardFace = "up" | "down";
 
@@ -17,6 +17,7 @@ export type CardState = {
   zoneId: ZoneId;
   face: CardFace;
   visibleTo: ViewerSet;
+  metadata: Record<string, unknown>;
 };
 
 export type ZoneType = "deck" | "hand" | "table" | "pile";
@@ -26,6 +27,7 @@ export type ZoneState = {
   type: ZoneType;
   ownerPlayerId?: PlayerId;
   cardIds: CardId[];
+  metadata: Record<string, unknown>;
 };
 
 export type PlayerState = {
