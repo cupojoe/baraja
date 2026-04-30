@@ -9,10 +9,12 @@ type BaseEvent = {
 export type CardsDealtEvent = BaseEvent & {
   type: "CardsDealt";
   actorId: PlayerId;
-  cardIds: CardId[];
+  movedCardIds: CardId[];
   fromZoneId: ZoneId;
   toZoneId: ZoneId;
-  face: CardFace;
+  toFace: CardFace;
+  fromResultingCardIds: CardId[];
+  toResultingCardIds: CardId[];
 };
 
 export type ZoneShuffledEvent = BaseEvent & {
@@ -32,9 +34,12 @@ export type ZoneReorderedEvent = BaseEvent & {
 export type CardsMovedEvent = BaseEvent & {
   type: "CardsMoved";
   actorId: PlayerId;
-  cardIds: CardId[];
+  movedCardIds: CardId[];
   fromZoneId: ZoneId;
   toZoneId: ZoneId;
+  toFace: CardFace;
+  fromResultingCardIds: CardId[];
+  toResultingCardIds: CardId[];
 };
 
 export type CardsFlippedEvent = BaseEvent & {

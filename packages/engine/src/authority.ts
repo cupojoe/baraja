@@ -1,9 +1,12 @@
 import type { AuthorityCommand } from "./commands.js";
 import type { CommandRejectionReason, GameEvent } from "./events.js";
 import { cut } from "./reducers/cut.js";
+import { deal } from "./reducers/deal.js";
 import { flip } from "./reducers/flip.js";
+import { give } from "./reducers/give.js";
 import { joinPlayer } from "./reducers/joinPlayer.js";
 import { shuffle } from "./reducers/shuffle.js";
+import { take } from "./reducers/take.js";
 import { createRng, type Rng } from "./rng.js";
 import type { RoomState } from "./types.js";
 
@@ -51,8 +54,11 @@ export function createAuthority(input: CreateAuthorityInput = {}): Authority {
         case "Flip":
           return flip(state, command, now);
         case "Deal":
+          return deal(state, command, now);
         case "Give":
+          return give(state, command, now);
         case "Take":
+          return take(state, command, now);
         case "Peek":
         case "Show":
           throw new Error(`reducer for ${command.type} not implemented`);
