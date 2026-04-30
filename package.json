@@ -2,8 +2,9 @@
   "name": "baraja",
   "private": true,
   "engines": {
-    "node": "22.x"
+    "node": ">=24"
   },
+  "packageManager": "npm@11.12.1",
   "workspaces": [
     "apps/*",
     "packages/*"
