@@ -19,6 +19,14 @@ export type ZoneShuffledEvent = BaseEvent & {
   type: "ZoneShuffled";
   actorId: PlayerId;
   zoneId: ZoneId;
+  resultingCardIds: CardId[];
+};
+
+export type ZoneReorderedEvent = BaseEvent & {
+  type: "ZoneReordered";
+  actorId: PlayerId;
+  zoneId: ZoneId;
+  resultingCardIds: CardId[];
 };
 
 export type CardsMovedEvent = BaseEvent & {
@@ -73,6 +81,7 @@ export type CommandRejectedEvent = BaseEvent & {
 export type GameEvent =
   | CardsDealtEvent
   | ZoneShuffledEvent
+  | ZoneReorderedEvent
   | CardsMovedEvent
   | CardsFlippedEvent
   | CardPeekedEvent
