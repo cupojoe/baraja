@@ -16,6 +16,9 @@
     "typecheck": "turbo typecheck",
     "lint": "turbo lint"
   },
+  "optionalDependencies": {
+    "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.17"
+  },
   "devDependencies": {
     "turbo": "^2.9.6",
     "typescript": "~6.0.3"
