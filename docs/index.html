@@ -411,6 +411,7 @@ type CardState = {
   zoneId: ZoneId;
   face: "up" | "down";
   visibleTo: ViewerSet;
+  metadata: Record&lt;string, unknown&gt;;
 };
 
 type ZoneState = {
@@ -418,7 +419,57 @@ type ZoneState = {
   type: "deck" | "hand" | "table" | "pile";
   ownerPlayerId?: PlayerId;
   cardIds: CardId[];
+  metadata: Record&lt;string, unknown&gt;;
 };</code></pre>
+          </article>
+
+          <article class="stance-panel">
+            <div>
+              <p class="eyebrow">Layered Architecture</p>
+              <h3>Physical Deck Core, Rule Modules Above</h3>
+            </div>
+            <p>
+              The engine is a <strong>physical deck simulator</strong>. Its commands
+              (<code>Deal</code>, <code>Shuffle</code>, <code>Give</code>,
+              <code>Take</code>, <code>Peek</code>, <code>Show</code>,
+              <code>Flip</code>, <code>Cut</code>) describe what hands do at a real
+              table. They never describe game-specific concepts: no
+              <code>EndTurn</code>, <code>Score</code>, <code>DeclareWinner</code>,
+              or "legal move" enforcement lives in the core. Game rules — poker
+              scoring, blackjack hit logic, house variants — belong to a
+              <strong>rule module</strong> layer that sits above the engine.
+            </p>
+            <ul>
+              <li>
+                The <code>GameCommand</code> and <code>GameEvent</code> unions are
+                <strong>closed</strong>. There is no open-ended escape hatch. If a
+                rule needs something the engine cannot express physically, that is a
+                signal a primitive is missing, not a signal to widen the surface.
+              </li>
+              <li>
+                Rule modules are pure functions
+                <code>(event, projectedState) =&gt; GameCommand[]</code>. They
+                observe events the authority has already applied and emit further
+                physical commands; they never mutate state directly. Determinism,
+                replay, and the single reducer stay intact.
+              </li>
+              <li>
+                Rule modules run only where the reducer runs (cloud server or dealer
+                device). Running them on observer clients would let two clients
+                disagree on what just happened.
+              </li>
+              <li>
+                Game-specific <em>semantics</em> ride on the
+                <code>metadata</code> bag on zones and cards — "this zone is the
+                discard pile", "this card is a trump" — without growing
+                <code>ZoneType</code> into a per-game enum.
+              </li>
+            </ul>
+            <p>
+              No rule modules ship in v1. The boundary is being drawn now so the
+              first rule-driven game (post-v1) is a layer addition, not a core
+              rewrite.
+            </p>
           </article>
 
           <article class="notification-panel">
@@ -579,8 +630,9 @@ type ZoneState = {
               <h3 data-i18n="risk_rules_h3">Rule Ambiguity</h3>
               <p data-i18n="risk_rules_p">
                 Baraja is a deck simulator rather than one specific card game. The engine
-                should stay generic while public events make socially questionable moves
-                visible to the table.
+                stays generic while public events make socially questionable moves
+                visible to the table. Future game-specific rules layer above the engine
+                as rule modules — see the layered architecture note in the design section.
               </p>
             </article>
           </div>

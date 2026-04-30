@@ -747,6 +747,112 @@
           </div>
         </div>
       </section>
+      <!-- ── Architecture Boundary ─────────────────────────────────────── -->
+      <section id="rule-layer" class="section" aria-labelledby="h-rule-layer">
+        <div class="section-inner">
+          <div class="section-heading">
+            <p class="eyebrow">Architecture Boundary</p>
+            <h2 id="h-rule-layer">Physical Deck Core, Rule Modules Above</h2>
+            <p>
+              Baraja's natural trajectory is to support bespoke games on top of a
+              shared deck. The line between the physical-deck engine and any
+              future game rules is being drawn now, while the engine has no
+              callers, because the cost of drawing it later compounds with every
+              command and event added to the wire.
+            </p>
+          </div>
+
+          <div class="comparison-grid">
+            <article class="option-card selected">
+              <div class="selected-label">Selected</div>
+              <h3>Closed engine, layered rule modules</h3>
+              <p>
+                The engine implements only physical operations on cards and zones.
+                <code>GameCommand</code> and <code>GameEvent</code> are closed
+                discriminated unions with no escape hatch. Rule modules are pure
+                functions <code>(event, projectedState) =&gt; GameCommand[]</code>
+                that run on the authority alongside the reducer; they observe
+                applied events and emit further physical commands. Game-specific
+                semantics ride on a <code>metadata</code> bag attached to zones
+                and cards — added to the schema in v1 even though nothing
+                consumes it yet.
+              </p>
+              <ul>
+                <li>Replay, projection, and per-viewer privacy stay properties of a single reducer.</li>
+                <li>Adding a new game is a layer addition, not a core change.</li>
+                <li><code>metadata</code> on the schema avoids a painful retrofit through event payloads and the persisted log.</li>
+                <li>Authority-side execution keeps clients deterministic — no two observers disagree on what happened.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>Open command union with rule-emitted commands</h3>
+              <p>
+                Allow rule modules to extend <code>GameCommand</code> with
+                game-specific variants (e.g. <code>EndTurn</code>,
+                <code>Score</code>). The reducer then dispatches to a registry of
+                rule-provided handlers.
+              </p>
+              <ul>
+                <li>Visibility projection cannot reason about commands it does not know.</li>
+                <li>Replay-completeness becomes a property of every rule module, not just the engine.</li>
+                <li>Wire schema and persisted event log become per-game shaped — incompatible across rule sets.</li>
+              </ul>
+            </article>
+
+            <article class="option-card">
+              <div class="rejected-label">Rejected</div>
+              <h3>Game rules merged into the engine</h3>
+              <p>
+                Skip the boundary and grow the engine to know about specific games
+                directly: turn order, scoring, legality checks all baked into the
+                core reducer. This is what most card-game codebases drift into.
+              </p>
+              <ul>
+                <li>Every new game widens the central command vocabulary and reducer hotspot.</li>
+                <li>The "deck simulator" identity dissolves — the product becomes one specific game.</li>
+                <li>Rules conflicts (variant A vs variant B) become reducer branches, not module choices.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="decision-points" style="margin-top: 18px;">
+            <div>
+              <h3>What lands in v1</h3>
+              <p>
+                Only the boundary itself: closed command/event unions, a
+                <code>metadata: Record&lt;string, unknown&gt;</code> field on
+                <code>ZoneState</code> and <code>CardState</code>, and this
+                document. No rule-module runtime, no module registry, no game
+                modes. The engine ships as a deck simulator and nothing else.
+              </p>
+            </div>
+            <div>
+              <h3>The integration shape (for later)</h3>
+              <p>
+                A rule module is
+                <code>(event, projectedState) =&gt; GameCommand[]</code>, run on
+                the authority after every applied event. It can read state and
+                metadata but cannot mutate either; its only output is more
+                physical commands fed back into the engine. This preserves the
+                single-reducer property and keeps the event log canonical.
+              </p>
+            </div>
+            <div>
+              <h3>Accepted trade-off</h3>
+              <p>
+                A rule that genuinely cannot be expressed as a sequence of
+                physical commands forces a primitive addition to the engine, not
+                a workaround in the rule layer. This is intentional — it keeps
+                the wire schema honest. If that pressure shows up frequently
+                post-v1, it is a signal to revisit the boundary, not to add an
+                escape hatch.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="site-footer">

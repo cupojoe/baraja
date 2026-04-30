@@ -18,6 +18,8 @@ Resolve these **in PR-1 or PR-2**, because everything downstream depends on them
 
 8a. **Event versioning: single source of truth.** `version` lives **on the event itself** (matches the existing `BaseEvent` in `packages/engine/src/events.ts`). The Socket.IO wire envelope is just `{ event }`, not `{ event, version }`. PR-9's "version" pairing for `game:delta` reads `event.version` — no duplicate field. Reject any plan or code that adds an outer `version` next to an event's own.
 
+9. **Physical deck vs rule-layer boundary (locked, no v1 code).** The engine is a physical deck simulator. `GameCommand` and `GameEvent` are **closed** discriminated unions and stay closed — no `CustomCommand`, no rule-extension hook, no open-ended `payload: unknown` field. Game-specific concepts (`EndTurn`, `Score`, `DeclareWinner`, legality checks) never enter the engine. The future integration shape for rule modules is documented (`(event, projectedState) => GameCommand[]`, authority-side only), but no rule-module runtime, registry, or game modes ship in v1. The one schema concession that lands now: a `metadata: Record<string, unknown>` field on `ZoneState` and `CardState` (PR-1), so post-v1 rule modules can tag semantics ("discard pile", "trump", "trick") without growing `ZoneType` or rewriting event payloads. See `docs/decisions.html#rule-layer` and the layered architecture note in `docs/index.html`.
+
 8. **Events are replay-complete, with paired full and projected reducers.** Every event payload must carry enough information for a pure reducer to reconstruct the post-event *structure* (zone membership, face, version, players) without consulting the command, RNG, or external context. The engine ships **two** reducers sharing the same event type:
    - `applyEvent(state: RoomState, event): RoomState` — full-state replay. Used by server hydration. Carries `value` and `visibleTo: ViewerSet`.
    - `applyProjectedEvent(state: ProjectedRoomState, event, viewerId: PlayerId): ProjectedRoomState` — projected replay. Used by mobile clients. Updates structural fields only; preserves any existing `value` it already knows about and resets unknown card `value` to `null` when a card moves into a zone whose visibility excludes the viewer. Reveals (e.g. peek-by-self, show-to-everyone) arrive via `game:delta`, not via this reducer.
@@ -28,7 +30,7 @@ Resolve these **in PR-1 or PR-2**, because everything downstream depends on them
    - `CardPeeked { cardId, peekerId }` and `CardsShown { cardIds, audience }` are structural for accountability, but value reveals always come through the delta channel.
    Lock this contract in PR-2; each reducer PR adds matching branches in **both** `applyEvent` and `applyProjectedEvent`, with apply/replay equivalence tests for each. Server hydration uses `applyEvent`; PR-13 mobile uses `applyProjectedEvent`.
 
-Risks to defer (acknowledged, but NOT blocking v1): cryptographic privacy, mDNS discovery for dealer mode (use manual IP / QR with embedded URL), Postgres swap (schema is *not* portable as-is — see PR-25 for the schema-builder split required, but the work is small and isolated).
+Risks to defer (acknowledged, but NOT blocking v1): cryptographic privacy, mDNS discovery for dealer mode (use manual IP / QR with embedded URL), Postgres swap (schema is *not* portable as-is — see PR-25 for the schema-builder split required, but the work is small and isolated), rule modules / game-specific logic (boundary is locked per decision #9; first rule module is post-v1 and must not require widening the closed command/event unions).
 
 ---
 
@@ -40,7 +42,8 @@ This phase produces a fully tested deterministic engine. Server/mobile work in P
 - **Scope (in):**
   - Add Vitest to `packages/engine`.
   - **Change `ViewerSet` in `types.ts` from `"everyone" | Set<PlayerId>` to `"everyone" | PlayerId[]`.** This is a breaking change to existing types but unblocks JSON serialization for events *and* snapshots.
-  - Add `src/deck.ts` exporting `createStandardDeck()` returning 52 `CardState` with stable ids (e.g. `c-{rank}-{suit}`), in canonical sorted order (no shuffle yet — that lands in PR-3 with the seedable RNG).
+  - **Add `metadata: Record<string, unknown>` to `ZoneState` and `CardState`** (decision #9). Default to `{}` in the deck factory and `createRoom`. The engine never reads or writes it in v1 — it is a forward-compatible bag for post-v1 rule modules to tag semantics. Persisted in snapshots and round-trips through projection unchanged.
+  - Add `src/deck.ts` exporting `createStandardDeck()` returning 52 `CardState` with stable ids (e.g. `c-{rank}-{suit}`) and `metadata: {}`, in canonical sorted order (no shuffle yet — that lands in PR-3 with the seedable RNG).
   - Add `src/viewers.ts` with `hasViewer(set, playerId)`, `addViewer(set, playerId)` (idempotent — no duplicate entries), `removeViewer(set, playerId)`, and `resetViewers({ zoneType, face, ownerPlayerId }): ViewerSet`. The visibility table is a function of zone type *and* face (face-up hand/table cards are visible to everyone; face-down deck/pile/own-hand differ). Encode the full table from `docs/index.html` here.
 - **Out:** Reducers, commands, projection, RNG.
 - **Files:** `packages/engine/src/types.ts` (modify ViewerSet), `packages/engine/src/deck.ts`, `packages/engine/src/viewers.ts`, `packages/engine/src/index.ts`, `packages/engine/vitest.config.ts`, `packages/engine/package.json` (add `vitest`, `test` script), `packages/engine/src/__tests__/deck.test.ts`, `packages/engine/src/__tests__/viewers.test.ts`.
