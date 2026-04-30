@@ -34,6 +34,7 @@ describe("createStandardDeck", () => {
     const deck = createStandardDeck();
     const roomState: RoomState = {
       id: "room-1",
+      dealerPlayerId: "dealer",
       version: 0,
       players: {},
       zones: {

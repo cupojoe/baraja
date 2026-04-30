@@ -54,6 +54,7 @@ export type PlayerJoinedEvent = BaseEvent & {
   type: "PlayerJoined";
   playerId: PlayerId;
   displayName: string;
+  handZoneId: ZoneId;
 };
 
 export type PlayerLeftEvent = BaseEvent & {
@@ -61,9 +62,11 @@ export type PlayerLeftEvent = BaseEvent & {
   playerId: PlayerId;
 };
 
+export type CommandRejectionReason = "stale_version" | "invalid_card" | "unauthorized";
+
 export type CommandRejectedEvent = BaseEvent & {
   type: "CommandRejected";
-  reason: "stale_version" | "invalid_card" | "unauthorized";
+  reason: CommandRejectionReason;
   actorId: PlayerId;
 };
 

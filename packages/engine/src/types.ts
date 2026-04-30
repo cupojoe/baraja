@@ -38,6 +38,7 @@ export type PlayerState = {
 
 export type RoomState = {
   id: RoomId;
+  dealerPlayerId: PlayerId;
   version: number;
   players: Record<PlayerId, PlayerState>;
   zones: Record<ZoneId, ZoneState>;
