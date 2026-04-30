@@ -7,3 +7,8 @@ export * from "./deck.js";
 export * from "./state.js";
 export * from "./viewers.js";
 export * from "./reducers/joinPlayer.js";
+export * from "./reducers/shuffle.js";
+export * from "./reducers/cut.js";
+export * from "./reducers/flip.js";
+export * from "./reducers/validate.js";
+export * from "./rng.js";
