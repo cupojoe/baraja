@@ -92,6 +92,43 @@ p {
   color: var(--ink);
 }
 
+.lang-toggle {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
+.lang-sep {
+  color: var(--line);
+  font-size: 0.78rem;
+  user-select: none;
+}
+
+.lang-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  min-height: 30px;
+  padding: 0 8px;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.lang-btn:hover {
+  color: var(--ink);
+}
+
+.lang-btn.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--white);
+}
+
 .hero {
   background: var(--felt);
   color: var(--white);
