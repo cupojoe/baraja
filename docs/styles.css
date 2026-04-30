@@ -857,6 +857,36 @@ p {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.nav-links a[aria-current="page"] {
+  color: var(--ink);
+}
+
+.page-intro {
+  padding: calc(64px + clamp(52px, 9vw, 106px)) clamp(20px, 5vw, 72px) clamp(52px, 9vw, 106px);
+}
+
+.page-intro h1 {
+  font-size: clamp(2.8rem, 7vw, 6.4rem);
+  letter-spacing: -0.01em;
+  line-height: 0.94;
+  margin: 0 0 24px;
+}
+
+.page-intro p:not(.eyebrow) {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: clamp(1rem, 2vw, 1.22rem);
+  margin: 0;
+  max-width: 700px;
+}
+
+.rejected-label {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  margin-bottom: 18px;
+  text-transform: uppercase;
+}
+
 .site-footer {
   align-items: center;
   background: var(--ink);
