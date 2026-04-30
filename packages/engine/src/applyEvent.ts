@@ -1,5 +1,7 @@
 import type {
+  CardsDealtEvent,
   CardsFlippedEvent,
+  CardsMovedEvent,
   GameEvent,
   PlayerJoinedEvent,
   ZoneReorderedEvent,
@@ -29,6 +31,7 @@ export function applyEvent(state: RoomState, event: GameEvent): RoomState {
       return applyCardsFlipped(state, event);
     case "CardsDealt":
     case "CardsMoved":
+      return applyCardsMovedLike(state, event);
     case "CardPeeked":
     case "CardsShown":
     case "PlayerLeft":
@@ -53,6 +56,7 @@ export function applyProjectedEvent(
       return applyProjectedCardsFlipped(state, event, viewerId);
     case "CardsDealt":
     case "CardsMoved":
+      return applyProjectedCardsMovedLike(state, event, viewerId);
     case "CardPeeked":
     case "CardsShown":
     case "PlayerLeft":
@@ -221,6 +225,83 @@ function applyProjectedZoneReordered(
       ...state.zones,
       [zone.id]: { ...zone, cardIds: [...event.resultingCardIds] },
     },
+  };
+}
+
+function applyCardsMovedLike(state: RoomState, event: CardsDealtEvent | CardsMovedEvent): RoomState {
+  const fromZone = state.zones[event.fromZoneId];
+  const toZone = state.zones[event.toZoneId];
+  if (!fromZone || !toZone) {
+    throw new Error(`zone missing while replaying ${event.type}`);
+  }
+
+  const updatedCards: Record<string, CardState> = { ...state.cards };
+  for (const id of event.movedCardIds) {
+    const card = state.cards[id];
+    if (!card) continue;
+    updatedCards[id] = {
+      ...card,
+      zoneId: event.toZoneId,
+      face: event.toFace,
+      visibleTo: resetViewers({
+        zoneType: toZone.type,
+        face: event.toFace,
+        ownerPlayerId: toZone.ownerPlayerId,
+      }),
+    };
+  }
+
+  return {
+    ...state,
+    version: event.version,
+    zones: {
+      ...state.zones,
+      [event.fromZoneId]: { ...fromZone, cardIds: [...event.fromResultingCardIds] },
+      [event.toZoneId]: { ...toZone, cardIds: [...event.toResultingCardIds] },
+    },
+    cards: updatedCards,
+  };
+}
+
+function applyProjectedCardsMovedLike(
+  state: ProjectedRoomState,
+  event: CardsDealtEvent | CardsMovedEvent,
+  viewerId: PlayerId,
+): ProjectedRoomState {
+  const fromZone = state.zones[event.fromZoneId];
+  const toZone = state.zones[event.toZoneId];
+  if (!fromZone || !toZone) {
+    throw new Error(`zone missing while replaying ${event.type} (projected)`);
+  }
+
+  const updatedCards: Record<string, ProjectedCardState> = { ...state.cards };
+  for (const id of event.movedCardIds) {
+    const card = state.cards[id];
+    if (!card) continue;
+    const newViewers = resetViewers({
+      zoneType: toZone.type,
+      face: event.toFace,
+      ownerPlayerId: toZone.ownerPlayerId,
+    });
+    const viewerKnows = hasViewer(newViewers, viewerId);
+    updatedCards[id] = {
+      ...card,
+      zoneId: event.toZoneId,
+      face: event.toFace,
+      knownBy: knownByFromVisibility(newViewers, state.players),
+      value: viewerKnows ? card.value : null,
+    };
+  }
+
+  return {
+    ...state,
+    version: event.version,
+    zones: {
+      ...state.zones,
+      [event.fromZoneId]: { ...fromZone, cardIds: [...event.fromResultingCardIds] },
+      [event.toZoneId]: { ...toZone, cardIds: [...event.toResultingCardIds] },
+    },
+    cards: updatedCards,
   };
 }
 
