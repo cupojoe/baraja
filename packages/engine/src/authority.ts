@@ -5,6 +5,8 @@ import { deal } from "./reducers/deal.js";
 import { flip } from "./reducers/flip.js";
 import { give } from "./reducers/give.js";
 import { joinPlayer } from "./reducers/joinPlayer.js";
+import { peek } from "./reducers/peek.js";
+import { show } from "./reducers/show.js";
 import { shuffle } from "./reducers/shuffle.js";
 import { take } from "./reducers/take.js";
 import { createRng, type Rng } from "./rng.js";
@@ -60,8 +62,9 @@ export function createAuthority(input: CreateAuthorityInput = {}): Authority {
         case "Take":
           return take(state, command, now);
         case "Peek":
+          return peek(state, command, now);
         case "Show":
-          throw new Error(`reducer for ${command.type} not implemented`);
+          return show(state, command, now);
       }
     },
   };
