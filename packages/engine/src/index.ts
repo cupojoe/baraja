@@ -13,6 +13,8 @@ export * from "./reducers/flip.js";
 export * from "./reducers/deal.js";
 export * from "./reducers/give.js";
 export * from "./reducers/take.js";
+export * from "./reducers/peek.js";
+export * from "./reducers/show.js";
 export * from "./reducers/move.js";
 export * from "./reducers/validate.js";
 export * from "./rng.js";

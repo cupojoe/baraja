@@ -91,13 +91,11 @@ describe("applyEvent", () => {
 
   it("keeps non-PlayerJoined event branches explicit until their reducer PRs land", () => {
     const event: GameEvent = {
-      type: "CardsShown",
+      type: "PlayerLeft",
       roomId: "room-1",
       version: 1,
       timestamp: 123,
-      actorId: "alice",
-      cardIds: ["c-A-S"],
-      audience: "everyone",
+      playerId: "alice",
     };
 
     expect(() => applyEvent(createEmptyRoom(), event)).toThrow("not implemented");

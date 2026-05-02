@@ -1,7 +1,9 @@
 import type {
+  CardPeekedEvent,
   CardsDealtEvent,
   CardsFlippedEvent,
   CardsMovedEvent,
+  CardsShownEvent,
   GameEvent,
   PlayerJoinedEvent,
   ZoneReorderedEvent,
@@ -17,7 +19,7 @@ import type {
   RoomState,
   ViewerSet,
 } from "./types.js";
-import { hasViewer, resetViewers } from "./viewers.js";
+import { addViewer, hasViewer, resetViewers } from "./viewers.js";
 
 export function applyEvent(state: RoomState, event: GameEvent): RoomState {
   switch (event.type) {
@@ -33,7 +35,9 @@ export function applyEvent(state: RoomState, event: GameEvent): RoomState {
     case "CardsMoved":
       return applyCardsMovedLike(state, event);
     case "CardPeeked":
+      return applyCardPeeked(state, event);
     case "CardsShown":
+      return applyCardsShown(state, event);
     case "PlayerLeft":
     case "CommandRejected":
       throw new Error("not implemented");
@@ -58,7 +62,9 @@ export function applyProjectedEvent(
     case "CardsMoved":
       return applyProjectedCardsMovedLike(state, event, viewerId);
     case "CardPeeked":
+      return applyProjectedCardPeeked(state, event);
     case "CardsShown":
+      return applyProjectedCardsShown(state, event);
     case "PlayerLeft":
     case "CommandRejected":
       throw new Error("not implemented");
@@ -329,6 +335,100 @@ function applyProjectedCardsFlipped(
     };
   }
 
+  return {
+    ...state,
+    version: event.version,
+    cards: updatedCards,
+  };
+}
+
+function applyCardPeeked(state: RoomState, event: CardPeekedEvent): RoomState {
+  const updatedCards: Record<string, CardState> = { ...state.cards };
+  for (const cardId of event.cardIds) {
+    const card = state.cards[cardId];
+    if (!card) continue;
+    updatedCards[cardId] = {
+      ...card,
+      visibleTo: addViewer(card.visibleTo, event.peekerId),
+    };
+  }
+  return {
+    ...state,
+    version: event.version,
+    cards: updatedCards,
+  };
+}
+
+function applyCardsShown(state: RoomState, event: CardsShownEvent): RoomState {
+  const updatedCards: Record<string, CardState> = { ...state.cards };
+  for (const cardId of event.cardIds) {
+    const card = state.cards[cardId];
+    if (!card) continue;
+    updatedCards[cardId] = {
+      ...card,
+      visibleTo: widenViewers(card.visibleTo, event.audience),
+    };
+  }
+  return {
+    ...state,
+    version: event.version,
+    cards: updatedCards,
+  };
+}
+
+function widenViewers(viewers: ViewerSet, audience: ViewerSet): ViewerSet {
+  if (audience === "everyone") return "everyone";
+  let next = viewers;
+  for (const playerId of audience) {
+    next = addViewer(next, playerId);
+  }
+  return next;
+}
+
+function applyProjectedCardPeeked(
+  state: ProjectedRoomState,
+  event: CardPeekedEvent,
+): ProjectedRoomState {
+  const updatedCards: Record<string, ProjectedCardState> = { ...state.cards };
+  for (const cardId of event.cardIds) {
+    const card = state.cards[cardId];
+    if (!card) continue;
+    const knownBy = card.knownBy.includes(event.peekerId)
+      ? card.knownBy
+      : [...card.knownBy, event.peekerId];
+    updatedCards[cardId] = {
+      ...card,
+      knownBy,
+    };
+  }
+  return {
+    ...state,
+    version: event.version,
+    cards: updatedCards,
+  };
+}
+
+function applyProjectedCardsShown(
+  state: ProjectedRoomState,
+  event: CardsShownEvent,
+): ProjectedRoomState {
+  const updatedCards: Record<string, ProjectedCardState> = { ...state.cards };
+  for (const cardId of event.cardIds) {
+    const card = state.cards[cardId];
+    if (!card) continue;
+    let knownBy: PlayerId[];
+    if (event.audience === "everyone") {
+      knownBy = Object.keys(state.players);
+    } else {
+      const set = new Set(card.knownBy);
+      for (const playerId of event.audience) set.add(playerId);
+      knownBy = [...set];
+    }
+    updatedCards[cardId] = {
+      ...card,
+      knownBy,
+    };
+  }
   return {
     ...state,
     version: event.version,
